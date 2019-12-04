@@ -90,3 +90,34 @@ class cube222:
         return np.array_equal(np.full([2,2],temp[0][0]), temp)
 
     def check(self):
+        result=True;
+        for i in range(6):
+            result=result and self.check_face(i) 
+        return result
+        # Only output true when all faces are checked true
+
+    def rotate_h(self):
+        # Rotating the whole cube 90 degree clockwise horizontally 
+        temp_face=np.copy(self.pattern[1])
+        self.pattern[0]=np.array(list(zip(*self.pattern[0][::-1])))
+        self.pattern[5]=np.array(list(zip(*self.pattern[5])[::-1]))
+        self.pattern[1]=self.pattern[2]
+        self.pattern[2]=self.pattern[3]
+        self.pattern[3]=self.pattern[4]
+        self.pattern[4]=temp_face
+
+    def rotate_v(self):
+        # Rotating the whole cube 90 degree clockwise vertically
+        temp_face=np.copy(self.pattern[1])
+        self.pattern[2]=np.array(list(zip(*self.pattern[2][::-1])))
+        self.pattern[4]=np.array(list(zip(*self.pattern[4])[::-1]))
+        self.pattern[1]=np.array(list(zip(*self.pattern[5][::-1])))
+        self.pattern[5]=np.array(list(zip(*self.pattern[3][::-1])))
+        self.pattern[3]=np.array(list(zip(*self.pattern[0][::-1])))
+        self.pattern[0]=np.array(list(zip(*temp_face[::-1])))
+
+    def expand(self):
+        # This function's output will be feeded to the DQN network
+        origin=np.copy(self.pattern)
+        # Origin pattern
+        
