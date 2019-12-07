@@ -11,20 +11,20 @@ class RL(nn.Module):
         super(RL, self).__init__()
         self.input_size = int(np.prod(input_shape))
         self.body = nn.Sequential(
-            nn.Linear(self.input_size, 4096),
+            nn.Linear(self.input_size, 4096).double(),
             nn.ELU(),
-            nn.Linear(4096,2048),
+            nn.Linear(4096,2048).double(),
             nn.ELU()
         )
         self.policy = nn.Sequential(
-            nn.Linear(2048, 512),
+            nn.Linear(2048, 512).double(),
             nn.ELU(),
-            nn.Linear(512,action_size)
+            nn.Linear(512,action_size).double()
         )
         self.value = nn.Sequential(
-            nn.Linear(2048, 512),
+            nn.Linear(2048, 512).double(),
             nn.ELU(),
-            nn.Linear(512,1)
+            nn.Linear(512,1).double()
         )
         self.memory = torch.tensor
 
@@ -54,18 +54,19 @@ class ExploreMemory(object):
 
         self.cnt = 0
         # Read next_memory and feed to the network 
-        feed_dict = torch.tensor(self.encode(self.next_memory.view().reshape(BATCH_SIZE*ACTIONS,7,2)),dtype=torch.float32)
+        feed_dict = torch.tensor(self.encode(self.next_memory.view().reshape(BATCH_SIZE*ACTIONS,7,2)),dtype=torch.float64)
         feed_dict = feed_dict.view(BATCH_SIZE*ACTIONS, 7*24) 
         values_t = net(feed_dict,value_only=True)
         values_t = values_t.view(BATCH_SIZE, ACTIONS)
         # Zero goal
-        values_t = torch.tensor(self.isgoal_memory,dtype=torch.float32)+values_t-1
+        values_t = values_t-1
+        values_t[np.nonzero(self.isgoal_memory)]=0
         max_val_t, max_act_t = values_t.max(dim=1)
         # Make train inputs, new values, new actions
-        train_input = torch.tensor(self.encode(self.now_memory), dtype=torch.float32).detach()
+        train_input = torch.tensor(self.encode(self.now_memory), dtype=torch.float64).detach()
         train_new_values = max_val_t.detach()
         train_new_actions = max_act_t.detach()
-        return train_input, train_new_values, train_new_actions
+        return train_input.view(BATCH_SIZE,7*24), train_new_values, train_new_actions
 
     def play(self, max_steps):
         # Play a series of moves on the initial cube and write into memory 
@@ -87,8 +88,8 @@ class ExploreMemory(object):
     def encode(self, batch):
         # encode rule - one hot rule
         def f(x):
-            result=np.zeros([24],dtype=np.float32)
+            result=np.zeros([24],dtype=np.float64)
             result[x[0]+x[1]*8]=1
             return result
-        return np.array([np.array([f(xi) for xi in state],dtype=np.float32) for state in batch],\
-            dtype=np.float32)
+        return np.array([np.array([f(xi) for xi in state],dtype=np.float64) for state in batch],\
+            dtype=np.float64)

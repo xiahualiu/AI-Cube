@@ -2,21 +2,6 @@ import numpy as np
 
 class cube(object):
     # Keep track of top 4 stickers and bottom 4 stickers
-        
-    # Locations at beggining:
-    # 1: [1,1,1] 
-    # 2: [1,2,1]
-    # 3: [2,2,1]
-    # 4: [2,1,1]
-    # 5: [1,1,2]
-    # 6: [1,2,2]
-    # 7: [2,2,1]
-    # 8: [2,1,1]
-
-    # Directions of the sticker:
-    # 1: Top/Bottom 
-    # 2: Left/Right 
-    # 3: Front/Back
 
     def __init__(self):
         ## Some parameters 
@@ -32,6 +17,13 @@ class cube(object):
             "U":0, "L":1, "F":2, "R":3, "B":4, "D":5, \
             "u":6, "l":7, "f":8, "r":9,"b":10,"d":11
             }
+        # This is the ACTION when you print what you do
+        # Change after rotate the whole cube
+        self.R_ACTIONS={
+            0:"U", 1:"L", 2:"F", 3:"R", 4:"B", 5:"D", \
+            6:"u", 7:"l", 8:"f", 9:"r", 10:"b", 11:"d"
+        }
+
         # How many stickers are we tracking
         self.STICKER_NUM=8
 
@@ -196,29 +188,64 @@ class cube(object):
     def rotate_x_clockwise(self,state):
         state=self._turn(state,self.ACTIONS["F"])
         state=self._turn(state,self.ACTIONS["b"])
+        old=self.R_ACTIONS.copy()
+        self.R_ACTIONS={
+            0:old[1], 1:old[5], 2:old[2], 3:old[0], 4:old[4], 5:old[3], \
+            6:old[7], 7:old[11], 8:old[8], 9:old[6], 10:old[10], 11:old[9]
+        }
         return state
 
     def rotate_x_anticlockwise(self,state):
         state=self._turn(state,self.ACTIONS["f"])
         state=self._turn(state,self.ACTIONS["B"])
+        old=self.R_ACTIONS.copy()
+        self.R_ACTIONS={
+            0:old[3], 1:old[0], 2:old[2], 3:old[5], 4:old[4], 5:old[1], \
+            6:old[9], 7:old[6], 8:old[8], 9:old[11], 10:old[10], 11:old[7]
+        }
         return state
 
     def rotate_y_clockwise(self,state):
         state=self._turn(state,self.ACTIONS["R"])
         state=self._turn(state,self.ACTIONS["l"])
+        old=self.R_ACTIONS.copy()
+        self.R_ACTIONS={
+            0:old[2], 1:old[1], 2:old[5], 3:old[3], 4:old[0], 5:old[4], \
+            6:old[8], 7:old[7], 8:old[11], 9:old[9], 10:old[6], 11:old[10]
+        }
         return state
 
     def rotate_y_anticlockwise(self,state):
         state=self._turn(state,self.ACTIONS["r"])
         state=self._turn(state,self.ACTIONS["L"])
+        old=self.R_ACTIONS.copy()
+        self.R_ACTIONS={
+            0:old[4], 1:old[1], 2:old[0], 3:old[3], 4:old[5], 5:old[2], \
+            6:old[10], 7:old[7], 8:old[6], 9:old[9], 10:old[11], 11:old[8]
+        }
         return state
 
     def rotate_z_clockwise(self,state):
         state=self._turn(state,self.ACTIONS["U"])
         state=self._turn(state,self.ACTIONS["d"])
+        old=self.R_ACTIONS.copy()
+        self.R_ACTIONS={
+            0:old[0], 1:old[2], 2:old[3], 3:old[4], 4:old[1], 5:old[5], \
+            6:old[6], 7:old[8], 8:old[9], 9:old[10], 10:old[7], 11:old[11]
+        }
         return state
 
     def rotate_z_anticlockwise(self,state):
         state=self._turn(state,self.ACTIONS["u"])
         state=self._turn(state,self.ACTIONS["D"])
+        old=self.R_ACTIONS.copy()
+        self.R_ACTIONS={
+            0:old[0], 1:old[4], 2:old[1], 3:old[2], 4:old[3], 5:old[5], \
+            6:old[6], 7:old[10], 8:old[7], 9:old[8], 10:old[9], 11:old[11]
+        }
         return state
+
+    # This function tells you what action you are going to take
+    # corresponding to the original cube
+    def print_move(self, action):
+        return self.R_ACTIONS[action]
