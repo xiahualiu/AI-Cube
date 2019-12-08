@@ -8,6 +8,9 @@ from cube import cube
 from encode import encode, encode_batch
 
 class RL(nn.Module):
+
+    # Reinforcement learning skeleton goes here
+    
     def __init__(self, input_shape, action_size):
         super(RL, self).__init__()
         self.input_size = int(np.prod(input_shape))
@@ -30,19 +33,44 @@ class RL(nn.Module):
         self.memory = torch.tensor
 
     def forward(self, batch, value_only=False):
-        body_output = self.body(batch) # input shape (n x 168, tensor)
+
+        # This is the function that do forward calculation
+        # You should input a batch of encoded state to this function
+        #
+        # Input Size: n x 168   Input Type: torch.tensor    Dtype=torch.float64
+        #     Output: 1) policy_predict Size: n x 6 Type:torch.tensor    Dtype=torch.float64
+        #             2) value_predict  Size: n x 1 Type:torch.tensor    Dtype=torch.float64
+        #
+
+        body_output = self.body(batch)
         if value_only == True:
             return self.value(body_output)
         return self.policy(body_output), self.value(body_output)
         
     def predict_cube(self, cube):
-        # Given a cube and the network will produce the value of the state and the policy 
+                
+        # This is the function that accepts one cube and does predict
+        # You should input a cube object to this function
+        #
+        # Input Size: 1   Input Type: object.cube
+        #     Output: 1) policy_predict Size: 6 Type:torch.tensor    Dtype=torch.float64
+        #             2) value_predict  Size: 1 Type:torch.tensor    Dtype=torch.float64
+        #
+
         feed_item=torch.from_numpy(encode(cube.state))
         # encode rule - one hot rule
         return self.forward(feed_item)
 
     def predict_state(self, state):
-        # Given a state and the network will produce the value of the state and the policy
+
+        # This is the function that accepts one state of a cube and does predict
+        # You should input a cube object to this function
+        #
+        # Input Size: 1   Input Type: cube.state    (np.array.shape=[7,2])
+        #     Output: 1) policy_predict Size: 6 Type:torch.tensor    Dtype=torch.float64
+        #             2) value_predict  Size: 1 Type:torch.tensor    Dtype=torch.float64
+        #
+
         feed_item=torch.from_numpy(encode(state))
         # encode rule - one hot rule
         return self.forward(feed_item)
@@ -60,9 +88,10 @@ class ExploreMemory(object):
         self.cnt = 0
 
     def process(self,net):
-        # This function will process the moves we generated during exploring
-        # Produce new state values based on next states and bellman equation
-        # Reset memory pointer after process
+
+        # This function is always called after play function 
+        # It processes the memory (a series of states) that are written during play
+        # MDP is going on here
 
         self.cnt = 0
         # Read next_memory and feed to the network 
@@ -81,7 +110,11 @@ class ExploreMemory(object):
         return train_input.view(BATCH_SIZE, 168), train_new_values, train_new_actions
 
     def play(self, max_steps):
-        # Play a series of moves on the initial cube and write into memory 
+        
+        # This function is always called after play function 
+        # It processes the memory (a series of states) that are written during play
+        # Bellman equation is using here
+
         while self.cnt<BATCH_SIZE:
             temp_cube=cube()
             for i in range(max_steps):
@@ -93,6 +126,9 @@ class ExploreMemory(object):
                     self.remember(encode(temp_cube.state), encode_batch(temp_neighbors), temp_rewards) 
     
     def remember(self, encoded_state, encoded_next_states, reward):
+
+        # Write memory
+
         self.now_memory[self.cnt]=encoded_state
         self.next_memory[self.cnt]=encoded_next_states
         self.reward_memory[self.cnt]=reward

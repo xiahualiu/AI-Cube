@@ -1,5 +1,6 @@
 import numpy as np 
 from encode import encode
+from copy import deepcopy
 
 class cube(object):
     # Keep track of top 4 stickers and bottom 4 stickers
@@ -68,6 +69,7 @@ class cube(object):
     # Peek all will return an array of all next states
     # And if next state is solved
     # Also output isgoal flag
+
     def peek_all(self):
         next_states=np.zeros((len(self.ACTIONS),7,2),dtype=np.uint8)
         isgoal=np.zeros((len(self.ACTIONS)), dtype=np.uint8)
@@ -78,6 +80,19 @@ class cube(object):
         return next_states, isgoal
     
 
-    # This function tells you what action you are going to take
     def print_move(self, action):
+        # This function tells you what action you are going to take
         return self.ACTIONS[action]
+
+    def new_cube(self, action):
+    # This function will return a new cube based on the action and keep the old cube unchanged
+        temp_cube=cube()
+        temp_cube.state=np.copy(self.state)
+        temp_cube.turn(action)
+        return temp_cube
+
+    def copy(self):
+    # This function will return a copy of the current cube
+        temp_cube=cube()
+        temp_cube.state=np.copy(self.state)
+        return temp_cube
