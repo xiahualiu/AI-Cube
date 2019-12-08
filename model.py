@@ -75,7 +75,7 @@ class RL(nn.Module):
         # encode rule - one hot rule
         return self.forward(feed_item)
 
-BATCH_SIZE = 20
+BATCH_SIZE = 300
 ACTIONS = 6
 STICKERS = 7
 

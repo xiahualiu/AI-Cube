@@ -22,8 +22,8 @@ memory=ExploreMemory()
 
 loss_history=np.array([],dtype=np.float64)
 
-for epoch in range(200):
-    for i in [1,2,3,4,5,6,7,8]:
+for epoch in range(100):
+    for i in range(1,50):
         memory.play(i)
         train_input, train_new_vals, train_new_acts=memory.process(net)
         opt.zero_grad()

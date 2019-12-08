@@ -23,16 +23,18 @@ mycube=cube()
 
 # Do some turns
 # self.ACTIONS={0:"F", 1:"R", 2:"D", 3:"f", 4:"r", 5:"d"}
-DEPTH=4
-for i in range(DEPTH)
+DEPTH=3
+for i in range(DEPTH):
+    action=np.random.randint(6)
+    print('Scrambling move: {}'.format(mycube.ACTIONS[action]))
+    mycube.turn(action)
 
-def get_actions(action):
-    if action<3
+def get_action(action):
+    if action<3:
         conter=action+3
     else:
         conter=action-3
-    action_set=np.array([0,1,2,3,4,5],dtype=np.uint32)
-    return np.array([x for x in action_set if not x==conter], dtype=np.uint32)
+    return conter
 
 old_move=99
 
@@ -41,7 +43,10 @@ while not mycube.check(mycube.state):
     # policy_predict, value_predict = net.predict_cube(mycube)
     # You can use state instead of cube
     policy_predict, value_predict = net.predict_state(mycube.state)
-    policy_predict=policy_predict[get_actions(old_move)]
+
+    if old_move != 99:
+        policy_predict[get_action(old_move)]=-99
+
     _, max_act_t = policy_predict.max(dim=0)
     action=max_act_t.numpy()
     old_move=action

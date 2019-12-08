@@ -1,234 +1,107 @@
-#Tyler Watson - Last Update 12/06/2019
-import numpy as np 
-import random
-import collections
-import torch
-import torch.nn.functional as F 
-from . import cubes
-from . import model
+from cube import cube
+from model import RL
+from copy import deepcopy
 
 class MCTS:
-    def __init__(self, cube_env, state, net, exploration_c=100, virt_loss_nu=100.0, device="cpu"):
-        assert isinstance(cube_env, cubes.CubeEnv)
-        assert cube_env.is_state(state)
-        self.cube_env=cube_env
-        self.root_state=state
-        self.net=net
-        self.exploration_c=exploration_c
-        self.virt_loss_nu=virt_loss_nu
-        self.device=device
-        shape=(len(cube_env.action_enum), )
-        # correspond to N_s(a) in the paper
-        self.act_counts = collections.defaultdict(lambda: np.zeros(shape, dtype=np.uint32))
-        # correspond to W_s(a)
-        self.val_maxes = collections.defaultdict(lambda: np.zeros(shape, dtype=np.float32))
-        # correspond to P_s(a)
-        self.prob_actions = {}
-        # correspond to L_s(a)
-        self.virt_loss = collections.defaultdict(lambda: np.zeros(shape, dtype=np.float32))
-        # TODO: check speed and memory of edge-less version
-        self.edges = {}
-
-    def __len__(self):
-        return len(self.edges)
-
-    def __repr__(self):
-        return "MCTS(states=%d)" % len(self.edges)
-
-    def dump_root(self):
-        print("Root state:")
-        self.dump_state(self.root_state)
-
-    def dump_state(self, s):
-        print("")
-        print("act_counts: %s" % ", ".join(map(lambda v: "%8d" % v, self.act_counts[s].tolist())))
-        print("probs:      %s" % ", ".join(map(lambda v: "%.2e" % v, self.prob_actions[s].tolist())))
-        print("val_maxes:  %s" % ", ".join(map(lambda v: "%.2e" % v, self.val_maxes[s].tolist())))
-
-        act_counts = self.act_counts[s]
-        N_sqrt = np.sqrt(np.sum(act_counts))
-        u = self.exploration_c * N_sqrt / (act_counts + 1)
-        print("u:          %s" % ", ".join(map(lambda v: "%.2e" % v, u.tolist())))
-        u *= self.prob_actions[s]
-        print("u*prob:     %s" % ", ".join(map(lambda v: "%.2e" % v, u.tolist())))
-        q = self.val_maxes[s] - self.virt_loss[s]
-        print("q:          %s" % ", ".join(map(lambda v: "%.2e" % v, q.tolist())))
-        fin = u + q
-        print("u*prob + q: %s" % ", ".join(map(lambda v: "%.2e" % v, fin.tolist())))
-        act = np.argmax(fin, axis=0)
-        print("Action: %s" % act)
+    def __init__(self, cube, net):
+        self.root=node(cube, net, [])
+        self.shortest=float('inf')
+        self.best_path=[]
+        self.best_node=self.root # find the potential best node in the tree
+        self.max_search=6*5*5*5;
+        self.search_cnt=0;
 
     def search(self):
-        s, path_actions, path_states = self._search_leaf()
+        path=[]
+        queue=[self.root]
+        self.search_cnt=0;
 
-        child_states, child_goal = self.cube_env.explore_state(s)
-        self.edges[s] = child_states
-
-        value = self._expand_leaves([s])[0]
-        self._backup_leaf(path_states, path_actions, value)
-
-        if np.any(child_goal):
-            path_actions.append(np.argmax(child_goal))
-            return path_actions
-        return None
-
-    def _search_leaf(self):
-        """
-        Beging search, find leaf node
-        Input: None
-        Output: path's next states, actions, path_states 
-        """
-        s = self.root_state
-        path_actions = []
-        path_states = []
-        while True:
-            next_states = self.edges.get(s)
-            if next_states is None:
-                break
-
-            act_counts = self.act_counts[s]
-            N_sqrt = np.sqrt(np.sum(act_counts))
-            if N_sqrt < 1e-6:
-                act = random.randrange(len(self.cube_env.action_enum))
+        while len(queue)!=0 and self.search_cnt < self.max_search:
+            node = queue.pop(0)
+            self.search_cnt+=1
+            if node.isleaf:
+                if node.value > self.best_node.value:
+                    self.best_node=node
+                if node.solvable:
+                    temp_path=node.lastactions+node.path
+                    if len(temp_path)<self.shortest:
+                        self.best_path=temp_path
+                        self.shortest=len(temp_path)
             else:
-                u = self.exploration_c * N_sqrt / (act_counts + 1)
-                u *= self.prob_actions[s]
-                q = self.val_maxes[s] - self.virt_loss[s]
-                act = np.argmax(u + q)
-            self.virt_loss[s][act] += self.virt_loss_nu
-            path_actions.append(act)
-            path_states.append(s)
-            s = next_states[act]
-        return s, path_actions, path_states
+                queue=queue+node.child
 
-    def _expand_leaves(self, leaf_states):
-        """
-        Using the network, expand the states
-        Input: states of leaf
-        Output: Values of leaf states
-        """
-        policies, values = self.evaluate_states(leaf_states)
-        for s, p in zip(leaf_states, policies):
-            self.prob_actions[s] = p
-        return values
-
-    def _backup_leaf(self, states, actions, value):
-        """
-        Update starting nodes once leaf(s) have been expanded
-        Input: state paths (excuding final leaf), path of actions, and value of node
-        Output: None (updates values)
-        """
-        for path_s, path_a in zip(states, actions):
-            self.act_counts[path_s][path_a] += 1
-            w = self.val_maxes[path_s]
-            w[path_a] = max(w[path_a], value)
-            self.virt_loss[path_s][path_a] -= self.virt_loss_nu
-
-    def search_batch(self, batch_size):
-        """
-        This will help increase performance
-        Input: Size of batch
-        Output: Successful path to solution (if exists)
-        """
-        batch_size = min(batch_size, len(self) + 1)
-        batch_states, batch_actions, batch_paths = [], [], []
-        for _ in range(batch_size):
-            s, path_acts, path_s = self._search_leaf()
-            batch_states.append(s)
-            batch_actions.append(path_acts)
-            batch_paths.append(path_s)
-
-        for s, path_actions in zip(batch_states, batch_actions):
-            child, goals = self.cube_env.explore_state(s)
-            self.edges[s] = child
-            if np.any(goals):
-                return path_actions + [np.argmax(goals)]
-
-        values = self._expand_leaves(batch_states)
-        for value, path_states, path_actions in zip(values, batch_paths, batch_actions):
-            self._backup_leaf(path_states, path_actions, value)
-        return None
-
-    def evaluate_states(self, states):
-        """
-        Calculate and return policy
-        Input: states
-        Output: Policy update
-        """
-        enc_states = model.encode_states(self.cube_env, states)
-        enc_states_t = torch.tensor(enc_states).to(self.device)
-        policy_t, value_t = self.net(enc_states_t)
-        policy_t = F.softmax(policy_t, dim=1)
-        return policy_t.detach().cpu().numpy(), value_t.squeeze(-1).detach().cpu().numpy()
-
-    def eval_states_values(self, states):
-        """
-        Evaluate state values
-        Input: states
-        Output: Value update
-        """
-        enc_states = model.encode_states(self.cube_env, states)
-        enc_states_t = torch.tensor(enc_states).to(self.device)
-        value_t = self.net(enc_states_t, value_only=True)
-        return value_t.detach().cpu().numpy()
-
-    def get_depth_stats(self):
-        """
-        Find statistics of explored nodes
-        Input: None
-        Output: Max, mean, and number of leaves
-        """
-        max_depth = 0
-        sum_depth = 0
-        leaves_count = 0
-        q = collections.deque([(self.root_state, 0)])
-        met = set()
-        while q:
-            s, depth = q.popleft()
-            met.add(s)
-            for ss in self.edges[s]:
-                if ss not in self.edges:
-                    max_depth = max(max_depth, depth+1)
-                    sum_depth += depth+1
-                    leaves_count += 1
-                elif ss not in met:
-                    q.append((ss, depth+1))
-        return {
-            'max': max_depth,
-            'mean': sum_depth / leaves_count,
-            'leaves': leaves_count
-        }
-
-    def dump_solution(self, solution):
-        assert isinstance(solution, list)
-
-        s = self.root_state
-        r = self.cube_env.render(s)
-        print(r)
-        for aidx in solution:
-            a = self.cube_env.action_enum(aidx)
-            print(a, aidx)
-            s = self.cube_env.transform(s, a)
-            r = self.cube_env.render(s)
-            print(r)
-
-    def find_solution(self):
-        """
-        Find Solution?!? :)
-        Input: None
-        Output: Key to life
-        """
-        queue = collections.deque([(self.root_state, [])])
-        seen = set()
-
+    def add_leaves(self):
+        path=[]
+        queue=[self.root]
         while queue:
-            s, path = queue.popleft()
-            seen.add(s)
-            c_states, c_goals = self.cube_env.explore_state(s)
-            for a_idx, (c_state, c_goal) in enumerate(zip(c_states, c_goals)):
-                p = path + [a_idx]
-                if c_goal:
-                    return p
-                if c_state in seen or c_state not in self.edges:
-                    continue
-                queue.append((c_state, p))
+            node = queue.pop(0)
+            if (node.isleaf) and (not node.issolved):
+                node.add_child()
+            else:
+                queue=queue+node.child
+
+class node():
+    def __init__(self, cube, net, lastactions):
+        self.cube=cube
+        self.net=net
+        self.issolved=cube.check(cube.state)
+        self.lastactions=lastactions
+        self.isleaf=True
+        self.child=[]
+        # Below properties are going to be written by simulate function
+        self.solvable=False
+        self.path=[]
+        self.distance=float('inf')
+        self.value=0
+        # Do simulate for every new node
+        self.simulate()
+
+    def add_child(self):
+        actions=[0,1,2,3,4,5]
+        if len(self.lastactions) != 0:
+            actions.remove(self.get_action(self.lastactions[-1]))
+        for action in actions:
+            self.child.append(self.turn_node(action))
+        self.isleaf=False
+        print
+
+    def turn_node(self, action):
+        temp_cube=self.cube.new_cube(action)
+        temp_node=node(temp_cube,self.net,self.lastactions+[action])
+        return temp_node
+
+    def get_action(self,action):
+        if action<3:
+            counter=action+3
+        else:
+            counter=action-3
+        return counter
+
+    def simulate(self):
+
+        # Copy the cube and do the simulation
+        temp_cube = self.cube.copy()
+
+        for i in range(10):
+            # Check if the cube can be solved in 10 steps
+            # when it >10 steps we regard it is not solvable by our network
+            if temp_cube.check(temp_cube.state):
+                self.solvable=True
+                self.distance=i
+                return
+
+            policy_predict, value_predict = self.net.predict_state(temp_cube.state)
+            self.value=value_predict.detach().numpy()
+            if len(self.lastactions) != 0:
+                policy_predict[self.get_action(self.lastactions[-1])]=-float('inf')
+            # By setting it to -inf we make sure not to select it on next line
+            _, max_act_t = policy_predict.max(dim=0)
+            action=max_act_t.detach().numpy()
+            last_move=action
+            temp_cube.turn(action)
+            self.path.append(action)
+            # If 5 steps did not solve the cube
+        self.solvable=False
+        self.distance=float('inf')
+        self.path=[]
+        return
