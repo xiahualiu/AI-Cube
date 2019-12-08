@@ -23,15 +23,16 @@ mycube=cube()
 
 # Do some turns
 # self.ACTIONS={0:"F", 1:"R", 2:"D", 3:"f", 4:"r", 5:"d"}
-mycube.turn(1) # Turn F
-mycube.turn(2) # Turn d
-mycube.turn(3) # Turn r
+mycube.turn(1) # Turn R
+mycube.turn(2) # Turn D
+mycube.turn(3) # Turn f
+mycube.turn(0) # Turn F
 
 # Solve only by using neural network
 while not mycube.check(mycube.state):
-    policy_predict, value_predict = net.predict_cube(mycube)
+    # policy_predict, value_predict = net.predict_cube(mycube)
     # You can use state instead of cube
-    # policy_predict, value_predict = net.predict_state(mycube.state)
+    policy_predict, value_predict = net.predict_state(mycube.state)
     max_val_t, max_act_t = policy_predict.max(dim=0)
     action=max_act_t.numpy()
     print(mycube.ACTIONS[int(action)])

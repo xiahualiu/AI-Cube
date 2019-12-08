@@ -43,7 +43,7 @@ class RL(nn.Module):
 
     def predict_state(self, state):
         # Given a state and the network will produce the value of the state and the policy
-        feed_item=torch.from_numpy(encode(temp))
+        feed_item=torch.from_numpy(encode(state))
         # encode rule - one hot rule
         return self.forward(feed_item)
 
