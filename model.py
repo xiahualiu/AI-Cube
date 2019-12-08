@@ -5,6 +5,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from cube import cube
+from encode import encode, encode_batch
 
 class RL(nn.Module):
     def __init__(self, input_shape, action_size):
@@ -29,22 +30,33 @@ class RL(nn.Module):
         self.memory = torch.tensor
 
     def forward(self, batch, value_only=False):
-        x = batch.view(-1,self.input_size)
-        body_output = self.body(batch)
+        body_output = self.body(batch) # input shape (n x 168, tensor)
         if value_only == True:
             return self.value(body_output)
         return self.policy(body_output), self.value(body_output)
+        
+    def predict_cube(self, cube):
+        # Given a cube and the network will produce the value of the state and the policy 
+        feed_item=torch.from_numpy(encode(cube.state))
+        # encode rule - one hot rule
+        return self.forward(feed_item)
 
-BATCH_SIZE = 128
-ACTIONS = 12
-STICKERS = 8
+    def predict_state(self, state):
+        # Given a state and the network will produce the value of the state and the policy
+        feed_item=torch.from_numpy(encode(temp))
+        # encode rule - one hot rule
+        return self.forward(feed_item)
+
+BATCH_SIZE = 20
+ACTIONS = 6
+STICKERS = 7
 
 class ExploreMemory(object):
 
     def __init__(self):
-        self.now_memory = np.zeros((BATCH_SIZE,7,2),dtype=np.uint8) 
-        self.next_memory = np.zeros((BATCH_SIZE,ACTIONS,7,2),dtype=np.uint8)
-        self.isgoal_memory = np.zeros((BATCH_SIZE,ACTIONS), dtype=np.uint8)
+        self.now_memory = np.zeros((BATCH_SIZE,168),dtype=np.float64) 
+        self.next_memory = np.zeros((BATCH_SIZE,ACTIONS,168),dtype=np.float64)
+        self.reward_memory = np.zeros((BATCH_SIZE,ACTIONS), dtype=np.float64)
         self.cnt = 0
 
     def process(self,net):
@@ -54,42 +66,34 @@ class ExploreMemory(object):
 
         self.cnt = 0
         # Read next_memory and feed to the network 
-        feed_dict = torch.tensor(self.encode(self.next_memory.view().reshape(BATCH_SIZE*ACTIONS,7,2)),dtype=torch.float64)
-        feed_dict = feed_dict.view(BATCH_SIZE*ACTIONS, 7*24) 
+        feed_dict = torch.from_numpy(self.next_memory)
+        feed_dict = feed_dict.view(-1, 168) 
         values_t = net(feed_dict,value_only=True)
         values_t = values_t.view(BATCH_SIZE, ACTIONS)
         # Zero goal
+        values_t[np.nonzero(self.reward_memory)]=1
         values_t = values_t-1
-        values_t[np.nonzero(self.isgoal_memory)]=0
         max_val_t, max_act_t = values_t.max(dim=1)
         # Make train inputs, new values, new actions
-        train_input = torch.tensor(self.encode(self.now_memory), dtype=torch.float64).detach()
+        train_input = torch.from_numpy(self.now_memory).detach()
         train_new_values = max_val_t.detach()
         train_new_actions = max_act_t.detach()
-        return train_input.view(BATCH_SIZE,7*24), train_new_values, train_new_actions
+        return train_input.view(BATCH_SIZE, 168), train_new_values, train_new_actions
 
     def play(self, max_steps):
         # Play a series of moves on the initial cube and write into memory 
-        while self.cnt<128:
+        while self.cnt<BATCH_SIZE:
             temp_cube=cube()
             for i in range(max_steps):
                 # One random step on the cube
-                temp_cube.step(np.random.randint(ACTIONS))
+                temp_cube.turn(np.random.randint(ACTIONS))
                 # Remeber the cube and continue
-                if self.cnt<128:
-                    self.remember(temp_cube.state(), temp_cube.neighbors()[0], temp_cube.neighbors()[1]) 
+                temp_neighbors, temp_rewards = temp_cube.peek_all() 
+                if self.cnt<BATCH_SIZE:
+                    self.remember(encode(temp_cube.state), encode_batch(temp_neighbors), temp_rewards) 
     
-    def remember(self, state, next_states, isgoal):
-        self.now_memory[self.cnt]=state[1:8,:]
-        self.next_memory[self.cnt]=next_states[:,1:8,:]
-        self.isgoal_memory[self.cnt]=isgoal
+    def remember(self, encoded_state, encoded_next_states, reward):
+        self.now_memory[self.cnt]=encoded_state
+        self.next_memory[self.cnt]=encoded_next_states
+        self.reward_memory[self.cnt]=reward
         self.cnt += 1
-    
-    def encode(self, batch):
-        # encode rule - one hot rule
-        def f(x):
-            result=np.zeros([24],dtype=np.float64)
-            result[x[0]+x[1]*8]=1
-            return result
-        return np.array([np.array([f(xi) for xi in state],dtype=np.float64) for state in batch],\
-            dtype=np.float64)

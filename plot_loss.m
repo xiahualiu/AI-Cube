@@ -5,22 +5,16 @@ clc
 load loss
 
 len=length(loss);
-d1=1:8:len;
-d2=2:8:len;
-d3=3:8:len;
-d4=4:8:len;
-d5=5:8:len;
-d6=6:8:len;
-d7=7:8:len;
-d8=8:8:len;
+d1=loss(1:8:len);
+d2=loss(2:8:len);
+d3=loss(3:8:len);
+d4=loss(4:8:len);
+d5=loss(5:8:len);
+d6=loss(6:8:len);
+d7=loss(7:8:len);
+d8=loss(8:8:len);
+
+sum=sum([d1;d2;d3;d4;d5;d6;d7;d8]);
 
 figure
-plot(loss(d1))
-hold on
-plot(loss(d2))
-plot(loss(d3))
-plot(loss(d4))
-plot(loss(d5))
-plot(loss(d6))
-plot(loss(d7))
-plot(loss(d8))
+plot(sum)

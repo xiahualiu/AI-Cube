@@ -8,7 +8,7 @@ from model import RL
 from model import ExploreMemory
 
 INPUT_SIZE=[7,24]
-ACTIONS=12
+ACTIONS=6
 
 device=torch.device("cpu")
 
@@ -16,13 +16,13 @@ device=torch.device("cpu")
 net = RL(INPUT_SIZE,ACTIONS).to(device)
 print(net)
 # Select optimizer
-opt = optim.Adam(net.parameters(), lr=0.0001)
+opt = optim.Adam(net.parameters(), lr=0.00005)
 # Select loss function
 memory=ExploreMemory()
 
 loss_history=np.array([],dtype=np.float64)
 
-for epoch in range(500):
+for epoch in range(200):
     for i in [1,2,3,4,5,6,7,8]:
         memory.play(i)
         train_input, train_new_vals, train_new_acts=memory.process(net)
@@ -37,5 +37,6 @@ for epoch in range(500):
         loss_history=np.append(loss_history, loss_t.detach().numpy())
         opt.step()
     print('Finish Epoch:{}!'.format(epoch))
+    torch.save(net.state_dict(),'./trained_network.pt')
     sio.savemat('loss.mat',mdict={'loss': loss_history})
     

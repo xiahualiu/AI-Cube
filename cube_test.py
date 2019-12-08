@@ -3,8 +3,8 @@ from cube import cube
 import numpy as np
 
 mycube=cube()
-mycube.step(1)
-mycube.step(9)
-print(mycube.check())
+mycube.turn(0)
+mycube.turn(3)
+print(mycube.check(mycube.state))
 
 pass
