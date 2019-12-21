@@ -50,8 +50,13 @@ Well, sometimes it failes because I limited the searching tree size in order to 
 
 ![](https://github.com/xiahualiu/AI-Cube/blob/master/result.png?raw=true)
 
+## TODO
+
+The Monte Carlo Tree Searching section was hurried in one night, I saw people using asychoronous Monte Carlo Tree Searching, it will increase the searching speed much more, but I did not use it. I will add it later. (I am kinda lazy, so no guarantee here)
+
 ## Requirements
 
 * Python 3.5+
 * PyTorch 1.3.1+
 * NumPy (intergrated with Python)
+
